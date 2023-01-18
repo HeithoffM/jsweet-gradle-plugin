@@ -249,6 +249,22 @@ public class JSweetPluginExtension {
 		this.extraSystemPath = extraSystemPath;
 	}
 
+	public String[] getIncludeTranspilation() {
+		return includeTranspilation;
+	}
+
+	public void setIncludeTranspilation(String[] includeTranspilation) {
+		this.includeTranspilation = includeTranspilation;
+	}
+
+	public String[] getExcludeTranspilation() {
+		return excludeTranspilation;
+	}
+
+	public void setExcludeTranspilation(String[] excludeTranspilation) {
+		this.excludeTranspilation = excludeTranspilation;
+	}
+
 	public Boolean isTsserver() {
 		return tsserver;
 	}
@@ -319,6 +335,8 @@ public class JSweetPluginExtension {
 	private String factoryClassName;
 
 	private String extraSystemPath;
+	private String[] includeTranspilation;
+	private String[] excludeTranspilation;
 
 	protected Boolean ignoreTypeScriptErrors;
 	protected File header;

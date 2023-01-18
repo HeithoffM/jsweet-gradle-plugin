@@ -18,9 +18,8 @@ package org.jsweet.gradle;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
 import java.io.File;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.codehaus.plexus.util.DirectoryScanner;
@@ -97,6 +96,9 @@ public class JSweetTranspileTask extends AbstractJSweetTask {
 			logInfo("disableSinglePrecisionFloats: " + configuration.isDisableSinglePrecisionFloats());
 			logInfo("factoryClassName: " + configuration.getFactoryClassName());
 
+			logInfo("includeTranspilation: " + configuration.getIncludeTranspilation());
+			logInfo("excludeTranspilation: " + configuration.getExcludeTranspilation());
+
 			logInfo("ignoreJavaFileNameError: " + configuration.isIgnoreJavaFileNameError());
 			logInfo("tscWatchMode: " + configuration.isTscWatchMode());
 
@@ -126,6 +128,7 @@ public class JSweetTranspileTask extends AbstractJSweetTask {
 			}
 
 			SourceFile[] sourceFiles = collectSourceFiles();
+			Set<String> excludedSources = collectExcludedSources(sourceFiles);
 
 			try (JSweetTranspiler transpiler = new JSweetTranspiler(baseDirectory, null, factory, workingDir,
 					tsOutputDir, jsOutputDir, configuration.getCandiesJsOut(), getClasspath().getAsPath())) {
@@ -195,7 +198,7 @@ public class JSweetTranspileTask extends AbstractJSweetTask {
 				if (configuration.getAutoPropagateAsyncAwaits() != null) {
 					transpiler.setAutoPropagateAsyncAwaits(configuration.getAutoPropagateAsyncAwaits());
 				}
-				transpiler.transpile(transpilationHandler, sourceFiles);
+				transpiler.transpile(transpilationHandler, excludedSources, sourceFiles);
 			}
 		} catch (NoClassDefFoundError e) {
 			if (configuration.isVerbose()) {
@@ -247,6 +250,54 @@ public class JSweetTranspileTask extends AbstractJSweetTask {
 		logInfo("sourceFiles: " + sources);
 
 		return sources.toArray(new SourceFile[0]);
+	}
+
+	/**
+	 * Filters out files from transpilation which are still part of the source files. This allows to
+	 * skip RTE implementation which otherwise would lead to a symbol not found Exception during java
+	 * compiling.
+	 * The previously collected sourceFiles are filtered to match only `includeTranspilation` and
+	 * after all files that `excludeTranspilation` are taken out.
+	 * @param sourceFiles Previously collected source files.
+	 * @return A set of files for which no code is generated.
+	 */
+	private Set<String> collectExcludedSources(SourceFile[] sourceFiles) {
+		logInfo("include transpilation: " + ArrayUtils.toString(configuration.getIncludeTranspilation()));
+		logInfo("exclude transpilation: " + ArrayUtils.toString(configuration.getExcludeTranspilation()));
+
+		Collection<File> sourceDirs = getSources().getSrcDirs();
+
+		List<SourceFile> includedTranspilationSources = new LinkedList<>();
+		// if `includeTranspilation` is empty, use `include` as default
+		String[] includeTranspilation = configuration.getIncludeTranspilation() == null
+				|| configuration.getIncludeTranspilation().length == 0 ?
+				configuration.getIncludes() :
+				configuration.getIncludeTranspilation();
+		for (File sourceDir : sourceDirs) {
+			DirectoryScanner dirScanner = new DirectoryScanner();
+			dirScanner.setBasedir(sourceDir);
+			dirScanner.setIncludes(includeTranspilation);
+			dirScanner.setExcludes(configuration.getExcludeTranspilation());
+			dirScanner.scan();
+
+			for (String includedTranspilationPath : dirScanner.getIncludedFiles()) {
+				if (includedTranspilationPath.endsWith(".java")) {
+					includedTranspilationSources.add(new SourceFile(new File(sourceDir, includedTranspilationPath)));
+				}
+			}
+		}
+
+		Set<String> includedTranspilationSourcesAsString = includedTranspilationSources.stream()
+				.map(i -> i.toString()).collect(Collectors.toSet());
+		// Filter from originally collected source files
+		Set<String> excludedTranspilationSources = Arrays.stream(sourceFiles)
+				.map(s -> s.toString())
+				.filter(s -> !includedTranspilationSourcesAsString.contains(s))
+				.collect(Collectors.toSet());
+
+		logInfo("excludedTranspilationSources: " + excludedTranspilationSources);
+
+		return excludedTranspilationSources;
 	}
 
 	public SourceDirectorySet getSources() {
