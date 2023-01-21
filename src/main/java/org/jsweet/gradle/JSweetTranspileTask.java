@@ -60,7 +60,7 @@ public class JSweetTranspileTask extends AbstractJSweetTask {
 		File tsOutputDir = configuration.getTsOut();
 		File jsOutputDir = configuration.getOutDir();
 
-		File baseDirectory = new File(".").getAbsoluteFile();
+		File baseDirectory = this.getProject().getProjectDir();
 
 		File workingDir = configuration.getWorkingDir();
 		if (workingDir != null && !workingDir.isAbsolute()) {
